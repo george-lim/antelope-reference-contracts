@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags: v[0-9]+.[0-9]+.[0-9]+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to deploy
+        default: 1.0.0
+
+permissions:
+  contents: write
+
+env:
+  TARGET_VERSION: ${{ github.event.inputs.version || github.ref }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/build-push-action@v2
+        with:
+          tags: reference_contracts
+      - uses: addnab/docker-run-action@v3
+        with:
+          image: reference_contracts
+          options: --name reference_contracts_container
+          run: /entrypoint.sh
+      - uses: tj-actions/docker-cp@v2
+        with:
+          container: reference_contracts_container
+          source: /contracts.tar
+          destination: ./contracts.tar
+      - run: echo TARGET_VERSION="${TARGET_VERSION#refs/*/v}" >> "$GITHUB_ENV"
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: ./contracts.tar
+          name: Release v${{ env.TARGET_VERSION }}
+          tag_name: v${{ env.TARGET_VERSION }}
